@@ -28,16 +28,15 @@ SensirionI2CScd4x scd4x;
 
 #define DEBUG 1
 
-#define CO_TRIGGER_PIN A0
 #define UPDATE_READINGSDATA_INTERVAL_MILLISECS 300000 // Update every 5 minutes
-#define UPDATE_DISPLAY_INTERVAL_MILLISECS 600000	  // Update every 5 minutes
+#define UPDATE_DISPLAY_INTERVAL_MILLISECS 600000	  // Update every 10 minutes
 #define LED_BLINK_INTERVAL_MILLISECS 10000			  // Update every 10 seconds
 
 #define LARGEFONT u8g2_font_courR18_tf
 #define MEDIUMFONT u8g2_font_5x7_tf
 #define SMALLFONT u8g2_font_4x6_tf
 
-long _delayCOMeterMillis = UPDATE_READINGSDATA_INTERVAL_MILLISECS;
+unsigned long _delayCOMeterMillis = UPDATE_READINGSDATA_INTERVAL_MILLISECS;
 
 uint16_t _CO2Val = 0;
 float _temp = 0;
@@ -45,10 +44,8 @@ float _humidity = 0;
 bool _forceUpdate = false;
 bool _forceDisplayUpdate = false;
 
-int _range, _min, _max;
-
-long _currentAmbientCOLevel = 0;
-String _mqttPostFix = "";
+uint16_t _min, _max;
+uint32_t _range;
 
 unsigned long _runCurrent;		 // set variable to time store
 unsigned long _runCOCheck;		 // set variable to time store
@@ -91,14 +88,6 @@ int lastValuesSparkline[NUMLASTVALUES];
 
 #define UPDATE_SIZE_UNKNOWN 0xFFFFFFFF
 
-#define NTPTIMEOUTVAL 4500
-const char *ntpServer = "pool.ntp.org";
-const long timezoneOffset = 0; // 0-23
-const long gmtOffset_sec = timezoneOffset * 60 * 60;
-const int daylightOffset_sec = 0;
-unsigned long _epochTime;
-
-String _ip = "";
 
 void setContrast(byte brightnessValue)
 {
@@ -120,8 +109,7 @@ void printUint16Hex(uint16_t value)
 	DEBUG_PRINT(value < 4096 ? "0" : "");
 	DEBUG_PRINT(value < 256 ? "0" : "");
 	DEBUG_PRINT(value < 16 ? "0" : "");
-	DEBUG_PRINT(value);
-	DEBUG_PRINT(HEX);
+	Serial.print(value, HEX);
 }
 
 void printSerialNumber(uint16_t serial0, uint16_t serial1, uint16_t serial2)
@@ -151,7 +139,8 @@ void updateCOHistory()
 	/**/
 
 	// recalc/normalise the sparkline values
-	_min = 9999999, _max = -9999999;
+	_min = UINT16_MAX;
+	_max = 0;
 	// find bounds:
 	for (byte i = 0; i < NUMLASTVALUES; i++)
 	{
@@ -293,8 +282,6 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
 
 	if (__mqttIncomingTopic == "cmnd/mcmddevices/brightness")
 	{
-		_brightness = __mqttIncomingPayload.toInt();
-
 		int __newBrightness = __mqttIncomingPayload.toInt();
 
 		if (__newBrightness < MINBRIGHTNESS)
@@ -302,8 +289,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
 		if (__newBrightness > MAXBRIGHTNESS)
 			__newBrightness = MAXBRIGHTNESS;
 
-		float __contrastVal = MAXBRIGHTNESS * __newBrightness / 100;
-
+		_brightness = (byte)__newBrightness;
 		DEBUG_PRINTLN("Setting Brightness to: " + String(_brightness));
 		setContrast(_brightness);
 	}
@@ -554,37 +540,23 @@ void displayLoading()
 	do
 	{
 		_display.setFont(MEDIUMFONT);
-		int16_t tbx, tby;
-		uint16_t tbw, tbh; // boundary box window
+		uint16_t tbw, tbh;
 
-		String text = "C02 Monitor";
-		tbw = _display.getStrWidth(text.c_str()); // get the string width
+		String text = "CO2 Monitor";
+		tbw = _display.getStrWidth(text.c_str());
 		tbh = _display.getFontAscent() + _display.getFontDescent();
 
-		// center bounding box by transposition of origin:
-
-		uint16_t x = ((SCREENWIDTH - tbw) / 2) - tbx;
-		uint16_t y = ((SCREENHEIGHT - tbh) / 2) - tby;
+		uint16_t x = (SCREENWIDTH - tbw) / 2;
+		uint16_t y = (SCREENHEIGHT - tbh) / 2;
 		_display.drawStr(x, y, text.c_str());
 		DEBUG_PRINTLN("Text: " + text + " X: " + String(x) + " Y: " + String(y) + " tbw: " + String(tbw) + " tbh: " + String(tbh));
 
 		text = "Reading initial values...";
-		tbw = _display.getStrWidth(text.c_str()); // get the string width
-		tbh = _display.getFontAscent() + _display.getFontDescent();
-
-		_display.drawStr(((SCREENWIDTH - tbw) / 2) - tbx, y + tbh + CELLPADDING, "Reading initial values..."); // print some text
+		tbw = _display.getStrWidth(text.c_str());
+		_display.drawStr((SCREENWIDTH - tbw) / 2, y + tbh + CELLPADDING, text.c_str());
 
 	} while (_display.nextPage());
 	DEBUG_PRINTLN("displayLoading() finished");
-}
-
-void pushDisplayBuffer()
-{
-	DEBUG_PRINTLN("pushDisplayBuffer()");
-	while (_display.nextPage())
-		;
-
-	DEBUG_PRINTLN("pushDisplayBuffer() finished");
 }
 
 void drawSparkLine()
@@ -628,8 +600,7 @@ void updateDisplayRender()
 	_display.firstPage();
 	do
 	{
-		int16_t tbx, tby;
-		uint16_t tbw, tbh; // boundary box window
+		uint16_t tbw, tbh;
 
 		int CO2PPMWidth = 0;
 
@@ -707,9 +678,8 @@ void setup()
 	WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 
 	DEBUG_PRINTLN("Starting...");
-	_mqttPostFix = String(random(0xffff), HEX);
-	_mqttClientId = MQTT_CLIENTNAME;
-	_deviceClientName = MQTT_CLIENTNAME;
+	_mqttClientId = MQTT_DEVICENAME;
+	_deviceClientName = MQTT_DEVICENAME;
 
 	delay(250); // give the screen time to init
 
@@ -749,7 +719,7 @@ void setup()
 
 	DEBUG_PRINTLN("Configuring MQTT");
 	setupMQTT();
-	mqttReconnect(_mqttClientId);
+	mqttReconnect(MQTT_DEVICENAME);
 	mqttCustomSubscribe();
 	mqttSendInitStat();
 
@@ -757,8 +727,8 @@ void setup()
 	// checkBST();
 
 	DEBUG_PRINTLN("Attempting MQTT: ");
-	DEBUG_PRINTLN(String(MQTT_SERVERADDRESS) + ":1883");
-	_mqttClient.setServer(MQTT_SERVERADDRESS, 1883);
+	DEBUG_PRINTLN(String(MQTT_SERVERADDRESS) + ":" + String(MQTT_SERVER_PORT));
+	_mqttClient.setServer(MQTT_SERVERADDRESS, MQTT_SERVER_PORT);
 	_mqttClient.setCallback(mqttCallback);
 
 	DEBUG_PRINTLN("Free Heap Memory: " + String(ESP.getFreeHeap()));
@@ -774,8 +744,7 @@ void setup()
 	{
 		DEBUG_PRINTLN("DNS Setup failed");
 	}
-	_ip = WiFi.localIP().toString();
-	DEBUG_PRINTLN("IP:" + _ip);
+	DEBUG_PRINTLN("IP:" + WiFi.localIP().toString());
 
 	// DEBUG_PRINTLN("Updating local time");
 	// setupTimeClient();

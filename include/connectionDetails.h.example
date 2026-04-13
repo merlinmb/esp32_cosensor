@@ -1,10 +1,19 @@
 #pragma once
 
-const char * SSID = "merlinhome";
-const char* WIFIPASSWORD = "n00n00head";
+const char * SSID = "YOUR_SSID";
+const char* WIFIPASSWORD = "YOUR_WIFI_PASSWORD";
+
+#define WIFI_ACCESSPOINT          "YOUR_SSID"
+#define WIFI_ACCESSPOINT_PASSWORD "YOUR_WIFI_PASSWORD"
+#define WIFI_ACCESSPOINT1         "YOUR_SSID_2"
+#define WIFI_ACCESSPOINT_PASSWORD1 "YOUR_WIFI_PASSWORD_2"
+
 #define MQTT_MAX_PACKET_SIZE 256
-const char* MQTT_SERVERADDRESS = "192.168.1.55";
+const char* MQTT_SERVERADDRESS = "192.168.1.x";
+#define MQTT_SERVER_IP   "192.168.1.x"
+#define MQTT_SERVER_PORT 1883
+#define MQTT_FRIENDLYNAME "espCO2Sensor"
 char* MQTT_CLIENTNAME = "espCO2Meter";
 const char* ARDUINO_OTA_URI_SUFFIX = "/firmware";
 const char* ARDUINO_OTA_UPDATE_USERNAME = "admin";
-const char* ARDUINO_OTA_UPDATE_PASSWORD = "1llusion_mb";
+const char* ARDUINO_OTA_UPDATE_PASSWORD = "YOUR_OTA_PASSWORD";
