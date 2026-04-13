@@ -1,4 +1,5 @@
 # ESP32 CO2 Sensor Monitor
+<img width="1200" height="950" alt="image" src="https://github.com/user-attachments/assets/8a854aef-35be-4236-aed4-d0c98a82de2c" />
 
 An ESP32-based CO2 monitoring device using a Sensirion SCD4x sensor, with a 256x64 OLED display, MQTT telemetry, and a built-in web server.
 
@@ -82,6 +83,8 @@ Connection credentials are stored in `src/connectionDetails.h` (not committed). 
 | `cmnd/mcmddevices/brightnesspercentage` | subscribe | Set display brightness (0–100%) |
 
 ## Web Interface
+
+<img width="740" height="773" alt="image" src="https://github.com/user-attachments/assets/88f3d6d3-5586-4ed8-bd7c-e2dac5b0dae6" />
 
 Access via `http://espCO2Sensor.local` or the device IP.
 
